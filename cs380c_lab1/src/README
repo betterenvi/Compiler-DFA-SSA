@@ -1,0 +1,10 @@
+A compiler for a subset of C (C-Subset Compiler or csc)
+by Martin Burtscher <burtscher@ices.utexas.edu>.
+
+Used for Fall 2009 CS380C at UT,
+Direct questions to 
+Hadi Esmaeilzadeh <hadi@cs.utexas.edu>.
+
+How to use:
+To generate the binary: ./make.sh
+To run: ./csc foo.c
