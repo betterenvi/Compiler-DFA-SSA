@@ -42,6 +42,7 @@ class Instruction(object):
         self.left = set()
         self.right = ''
         self._parse()
+        self._calc_rd_gen_kill()
         self._calc_ae_gen_kill()
         self._calc_lv_gen_kill()
 
@@ -86,6 +87,13 @@ class Instruction(object):
             self.dst_bbn = self.operand2_parsed
         elif self.op in Instruction.UJMP_OPS:
             self.dst_bbn = self.operand1_parsed
+
+    def _calc_rd_gen_kill(self):
+        self.RD_VAR_KILL = self.left
+        self.RD_KILL = set()
+        self.RD_GEN = set()
+        if self.op in Instruction.ARITH_OPS:
+            self.RD_GEN.add(self.instr_id)
 
     def _calc_ae_gen_kill(self):
         self.AE_VAR_KILL = self.left
@@ -191,6 +199,62 @@ class DFAFramework(object):
     def run(self):
         self._init_analysis()
         self._iterate()
+
+class ReachingDefinitionAnalysis(DFAFramework):
+    """docstring for ReachingDefinitionAnalysis"""
+    def __init__(self, direction='forward', *args, **kwargs):
+        kwargs['direction'] = direction
+        super(ReachingDefinitionAnalysis, self).__init__(*args, **kwargs)
+
+    def _set_merge_trans_func(self):
+        def merge_func(*args):
+            if len(args) == 0:
+                return set()
+            res = args[0]
+            for i in range(1, len(args)):
+                res |= args[i]
+            return res
+
+        def trans_func(x, gen, kill):
+            return (x - kill) | gen
+
+        self.merge_func = merge_func
+        self.trans_func = trans_func
+
+    def _calc_top_bottom(self):
+        self.top = set()
+        self.bottom = set()
+        for instr in self.instrs:
+            self.bottom.update(instr.RD_GEN)
+
+    def _get_rd_kill(self, lefts):
+        res = set()
+        for instr_id in self.bottom:
+            expression = self.instrs[instr_id - 1].right
+            tmp = expression.split(' ')
+            rights = [tmp[0], tmp[2]]
+            for left in lefts:
+                if left in rights:
+                    res.add(instr_id)
+        return res
+
+    def _calc_gen_kill(self):
+        self.GEN = collections.defaultdict(set)
+        self.KILL = collections.defaultdict(set)
+        for instr in self.instrs:
+            instr.RD_KILL.update(self._get_rd_kill(instr.left) - instr.RD_GEN)
+
+        for bbn, bb in self.cfg.bbs.items():
+            st, ed = bb.st_instr_id, bb.ed_instr_id
+            idx = st
+            while idx <= ed:
+                instr = self.instrs[idx - 1]
+                self.KILL[bbn] |= instr.RD_KILL
+                self.KILL[bbn] -= instr.RD_GEN
+                self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.RD_GEN, instr.RD_KILL)
+                idx += 1
+
+
 
 class AvailableExpressionAnalysis(DFAFramework):
     """docstring for AvailableExpressionAnalysis"""
@@ -354,6 +418,13 @@ class DFA(object):
         self.cfg.construct()
         return self
 
+    def run_rda(self):
+        '''
+        Reaching Definition Analysis
+        '''
+        self.rda = ReachingDefinitionAnalysis(instrs=self.instrs, cfg=self.cfg)
+        self.rda.run()
+
     def run_aea(self):
         '''
         Available Expression Analysis
@@ -375,5 +446,6 @@ if __name__ == '__main__':
     d._init_analysis()
     d.create_CFG()
     d.cfg.display()
+    d.run_rda()
     d.run_lva()
     d.run_aea()
