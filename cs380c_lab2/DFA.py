@@ -75,6 +75,20 @@ class Instruction(object):
         elif self.op in Instruction.UJMP_OPS:
             self.dst_bbn = self.operand1_parsed
 
+class DFAFramework(object):
+    """
+    docstring for DFAFramework
+    direction, merge_op, trans_func, top, bottom
+    """
+    def __init__(self, *args, **kwargs):
+        super(DFAFramework, self).__init__()
+        for i, arg in enumerate(args):
+            setattr(self, 'arg_' + str(i), arg)
+        for kw, arg in kwargs.items():
+            setattr(self, kw, arg)
+    def run(self, cfg):
+
+
 
 class DFA(object):
     def __init__(self):
@@ -142,10 +156,10 @@ class DFA(object):
 
         return self
 
-
-fn = './examples/collatz.c.3addr'
-d = DFA()
-d._read_3addr_code_from_file(fn)
-d._init_analysis()
-d.create_CFG()
-d.cfg.display()
+if __name__ == '__main__':
+    fn = './examples/gcd.c.3addr'
+    d = DFA()
+    d._read_3addr_code_from_file(fn)
+    d._init_analysis()
+    d.create_CFG()
+    d.cfg.display()
