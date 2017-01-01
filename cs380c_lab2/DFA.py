@@ -213,11 +213,6 @@ class ReachingDefinitionAnalysis(DFAFramework):
 
 
 
-
-
-
-
-
 class A(object):
     def __init__(self, x):
         super(A, self).__init__()
