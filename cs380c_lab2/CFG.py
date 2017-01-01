@@ -98,7 +98,7 @@ class CFG(object):
         '''
         self._Tarjan()
 
-    def calc_heads_tails_of_func(self):
+    def _calc_heads_tails_of_func(self):
         self.heads_of_func = collections.defaultdict(set)
         self.tails_of_func = collections.defaultdict(set)
         for func, bbns in self.bbns_of_func.items():
@@ -107,6 +107,9 @@ class CFG(object):
                     self.heads_of_func[func].add(bbn)
                 if len(self.successors[bbn]) == 0:
                     self.tails_of_func[func].add(bbn)
+
+    def construct(self):
+        self._calc_heads_tails_of_func()
 
 
 

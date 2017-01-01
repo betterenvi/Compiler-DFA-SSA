@@ -1,4 +1,4 @@
-import sys, os, re, collections
+import sys, os, re, collections, copy
 
 #from cfg import *
 
@@ -42,8 +42,16 @@ class Instruction(object):
         self.left = set()
         self.right = ''
         self._parse()
-        self._calc_rd_gen_kill()
+        self._calc_ae_gen_kill()
         self._calc_lv_gen_kill()
+
+    def __repr__(self):
+        res = 'instr %s:\t' % (self.instr_id)
+        if self.op in Instruction.ARITH_OPS + ['move', 'load', 'store']:
+            res += '%s = %s' % (' = '.join(self.left), self.right)
+        else:
+            res += ' '.join([self.op, self.operand1, self.operand2])
+        return res
 
     def _parse_operand(self, operand):
         for k, pat in Instruction.PATTERNS.items():
@@ -79,21 +87,21 @@ class Instruction(object):
         elif self.op in Instruction.UJMP_OPS:
             self.dst_bbn = self.operand1_parsed
 
-    def _calc_rd_gen_kill(self):
-        self.RD_VAR_KILL = self.left
-        self.RD_KILL = set()
-        self.RD_GEN = set()
+    def _calc_ae_gen_kill(self):
+        self.AE_VAR_KILL = self.left
+        self.AE_KILL = set()
+        self.AE_GEN = set()
         if self.op in Instruction.ARITH_OPS:
             tmp = self.right.split(' ')
             rights = [tmp[0], tmp[2]]
             for lf in self.left:
                 if lf in rights:
-                    self.RD_KILL.add(self.right)
+                    self.AE_KILL.add(self.right)
                     return
-            self.RD_GEN.add(self.right)
+            self.AE_GEN.add(self.right)
 
     def _calc_lv_gen_kill(self):
-        is_variable = lambda x : re.match('\d+', x) != None
+        is_variable = lambda x : x not in ['GP', 'FP'] and re.match('\d+', x) == None
         self.LV_GEN = set()
         if self.op in Instruction.ARITH_OPS:
             tmp = self.right.split(' ')
@@ -103,8 +111,10 @@ class Instruction(object):
         elif self.op in ['move', 'load']:
             self.LV_GEN.add(self.right)
         elif self.op == 'store':
-            self.LV_GEN.add(self.right)
-            self.LV_GEN.add(self.operand2_parsed)
+            if is_variable(self.right):
+                self.LV_GEN.add(self.right)
+            if is_variable(self.operand2_parsed):
+                self.LV_GEN.add(self.operand2_parsed)
         self.LV_KILL = self.left - self.LV_GEN
 
 
@@ -127,18 +137,14 @@ class DFAFramework(object):
         for kw, arg in kwargs.items():
             setattr(self, kw, arg)
 
-        self.IN = collections.defaultdict(set)
-        self.OUT = collections.defaultdict(set)
+        self.iter_IN = collections.defaultdict(set)
+        self.iter_OUT = collections.defaultdict(set)
         if self.direction == 'forward':
             self.iter_heads_of_func = self.cfg.heads_of_func
-            self.iter_IN = self.IN
-            self.iter_OUT = self.OUT
             self.predecessors = self.cfg.predecessors
             self.successors = self.cfg.successors
         else:
             self.iter_heads_of_func = self.cfg.tails_of_func
-            self.iter_IN = self.OUT
-            self.iter_OUT = self.IN
             self.predecessors = self.cfg.successors
             self.successors = self.cfg.predecessors
 
@@ -156,11 +162,12 @@ class DFAFramework(object):
     def _init_analysis(self):
         self.init_bbns = set()
         for bbn in self.cfg.bbs.keys():
-            self.IN[bbn] = self.top
-            self.OUT[bbn] = self.top
+            self.iter_IN[bbn] |= self.top
+            self.iter_OUT[bbn] |= self.top
         for func, bbns in self.iter_heads_of_func.items():
             self.init_bbns.update(bbns)
-        for init_bbn in self.init_bbns:
+        for bbn in self.init_bbns:
+            self.iter_IN[bbn] &= set()
             self.iter_OUT[bbn] = self.trans_func(self.iter_IN[bbn], self.GEN[bbn], self.KILL[bbn])
         self.updating_queue = list(self.init_bbns)
 
@@ -174,15 +181,22 @@ class DFAFramework(object):
                     self.iter_OUT[successor] = new_out
                     self.updating_queue.append(successor)
 
+        if self.direction == 'forward':
+            self.IN = self.iter_IN
+            self.OUT = self.iter_OUT
+        else:
+            self.IN = self.iter_OUT
+            self.OUT = self.iter_IN
+
     def run(self):
         self._init_analysis()
         self._iterate()
 
-class ReachingDefinitionAnalysis(DFAFramework):
-    """docstring for ReachingDefinitionAnalysis"""
+class AvailableExpressionAnalysis(DFAFramework):
+    """docstring for AvailableExpressionAnalysis"""
     def __init__(self, direction='forward', *args, **kwargs):
         kwargs['direction'] = direction
-        super(ReachingDefinitionAnalysis, self).__init__(*args, **kwargs)
+        super(AvailableExpressionAnalysis, self).__init__(*args, **kwargs)
 
     def _set_merge_trans_func(self):
         def merge_func(*args):
@@ -190,7 +204,7 @@ class ReachingDefinitionAnalysis(DFAFramework):
                 return set()
             res = args[0]
             for i in range(1, len(args)):
-                res |= args[i]
+                res &= args[i]
             return res
 
         def trans_func(x, gen, kill):
@@ -200,14 +214,14 @@ class ReachingDefinitionAnalysis(DFAFramework):
         self.trans_func = trans_func
 
     def _calc_top_bottom(self):
-        self.top = set()
         self.bottom = set()
+        self.top = set()
         for instr in self.instrs:
-            self.bottom.update(instr.RD_GEN)
+            self.top.update(instr.AE_GEN)
 
-    def _get_rd_kill(self, lefts):
+    def _get_ae_kill(self, lefts):
         res = set()
-        for expression in self.bottom:
+        for expression in self.top:
             tmp = expression.split(' ')
             for left in lefts:
                 if left in tmp:
@@ -218,18 +232,18 @@ class ReachingDefinitionAnalysis(DFAFramework):
         self.GEN = collections.defaultdict(set)
         self.KILL = collections.defaultdict(set)
         for instr in self.instrs:
-            instr.RD_KILL.update(self._get_rd_kill(instr.left))
+            instr.AE_KILL.update(self._get_ae_kill(instr.left))
 
         for bbn, bb in self.cfg.bbs.items():
             st, ed = bb.st_instr_id, bb.ed_instr_id
             idx = st
             while idx <= ed:
-                instr = self.instrs[idx]
-                self.KILL[bbn] |= instr.RD_KILL
-                self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.RD_GEN, instr.RD_KILL)
+                instr = self.instrs[idx - 1]
+                self.KILL[bbn] |= instr.AE_KILL
+                self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.AE_GEN, instr.AE_KILL)
                 idx += 1
 
-class LiveVariableAnalysis(object):
+class LiveVariableAnalysis(DFAFramework):
     """docstring for LiveVariableAnalysis"""
     def __init__(self, direction='backward', *args, **kwargs):
         kwargs['direction'] = direction
@@ -263,7 +277,7 @@ class LiveVariableAnalysis(object):
             st, ed = bb.st_instr_id, bb.ed_instr_id
             idx = ed
             while idx >= st:
-                instr = self.instrs[idx]
+                instr = self.instrs[idx - 1]
                 self.KILL[bbn] |= instr.LV_KILL
                 self.KILL[bbn] -= instr.LV_GEN
                 self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.LV_GEN, instr.LV_KILL)
@@ -296,6 +310,10 @@ class DFA(object):
             print e
             print 'Bad instructions in the code!'
         return self
+
+    def display_instrs(self):
+        for instr in self.instrs:
+            print instr
 
     def create_CFG(self):
         '''
@@ -333,15 +351,15 @@ class DFA(object):
             if next_instr_id <= self.num_instrs and ed_instr.op not in Instruction.UBR_OPS + Instruction.RET_OPS:
                 self.cfg.add_edge(leader, next_instr_id)
 
-        self.cfg.calc_heads_tails_of_func()
+        self.cfg.construct()
         return self
 
-    def run_rda(self):
+    def run_aea(self):
         '''
-        Reaching Definition Analysis
+        Available Expression Analysis
         '''
-        self.rda = ReachingDefinitionAnalysis(instrs=self.instrs, cfg=self.cfg)
-        self.rda.run()
+        self.aea = AvailableExpressionAnalysis(instrs=self.instrs, cfg=self.cfg)
+        self.aea.run()
 
     def run_lva(self):
         '''
@@ -357,3 +375,5 @@ if __name__ == '__main__':
     d._init_analysis()
     d.create_CFG()
     d.cfg.display()
+    d.run_lva()
+    d.run_aea()
