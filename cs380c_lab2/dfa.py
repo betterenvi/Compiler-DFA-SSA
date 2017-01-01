@@ -86,5 +86,21 @@ if __name__ == '__main__':
     d = DFA(instrs)
     d.display_cfg()
     d.run_rda()
-    d.run_lva()
     d.run_aea()
+    d.run_lva()
+
+    print d.rda.OUT
+    print d.aea.OUT
+    print d.lva.IN
+
+    # print d.lva.iter_IN
+    # print d.lva.iter_IN_instr
+
+    # print ''
+
+    # print d.aea.IN
+    # print d.aea.iter_IN
+    # print d.aea.iter_IN_instr
+
+    # print 13 in d.aea.iter_IN_instr
+    # print d.aea.iter_IN_instr[13]

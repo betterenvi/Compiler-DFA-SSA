@@ -42,3 +42,6 @@ class LiveVariableAnalysis(DFAFramework):
                 self.KILL[bbn] -= instr.LV_GEN
                 self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.LV_GEN, instr.LV_KILL)
                 idx -= 1
+
+    def _calc_iter_IN_OUT_for_instr(self):
+        super(LiveVariableAnalysis, self)._calc_iter_IN_OUT_for_instr(gen_attr='LV_GEN', kill_attr='LV_KILL')

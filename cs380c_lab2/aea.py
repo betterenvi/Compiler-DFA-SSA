@@ -53,3 +53,6 @@ class AvailableExpressionAnalysis(DFAFramework):
                 self.KILL[bbn] |= instr.AE_KILL
                 self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.AE_GEN, instr.AE_KILL)
                 idx += 1
+
+    def _calc_iter_IN_OUT_for_instr(self):
+        super(AvailableExpressionAnalysis, self)._calc_iter_IN_OUT_for_instr(gen_attr='AE_GEN', kill_attr='AE_KILL')

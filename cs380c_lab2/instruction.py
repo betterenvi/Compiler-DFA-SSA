@@ -69,6 +69,7 @@ class Instruction(object):
         self.operand1_parsed = self._parse_operand(self.operand1)[1]
         self.operand2_parsed = self._parse_operand(self.operand2)[1]
         if self.op in Instruction.ARITH_OPS:
+            self.operands = (self.operand1_parsed, self.operand2_parsed)
             self.right = '%s %s %s' % (self.operand1_parsed, self.op, self.operand2_parsed)
             self.left.add('r%s' % self.instr_id)
         elif self.op == 'move':
@@ -96,8 +97,7 @@ class Instruction(object):
         self.AE_KILL = set()
         self.AE_GEN = set()
         if self.op in Instruction.ARITH_OPS:
-            tmp = self.right.split(' ')
-            rights = [tmp[0], tmp[2]]
+            rights = self.operands
             for lf in self.left:
                 if lf in rights:
                     self.AE_KILL.add(self.right)
@@ -108,10 +108,9 @@ class Instruction(object):
         is_variable = lambda x : x not in ['GP', 'FP'] and re.match('\d+', x) == None
         self.LV_GEN = set()
         if self.op in Instruction.ARITH_OPS:
-            tmp = self.right.split(' ')
-            for i in [0, 2]:
-                if is_variable(tmp[i]):
-                    self.LV_GEN.add(tmp[i])
+            for v in self.operands:
+                if is_variable(v):
+                    self.LV_GEN.add(v)
         elif self.op in ['move', 'load']:
             self.LV_GEN.add(self.right)
         elif self.op == 'store':

@@ -53,4 +53,18 @@ class ReachingDefinitionAnalysis(DFAFramework):
                 self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.RD_GEN, instr.RD_KILL)
                 idx += 1
 
+    def _calc_iter_IN_OUT_for_instr(self):
+        super(ReachingDefinitionAnalysis, self)._calc_iter_IN_OUT_for_instr(gen_attr='RD_GEN', kill_attr='RD_KILL')
+
+    def _constant_propagation(self):
+        self.num_propagation = 0
+        for instr in self.instrs:
+            pass
+
+
+    def _optimize(self):
+        self._constant_propagation()
+
+
+
 

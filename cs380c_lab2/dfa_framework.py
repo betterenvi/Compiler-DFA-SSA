@@ -65,6 +65,27 @@ class DFAFramework(object):
                     self.iter_OUT[successor] = new_out
                     self._updating_queue.append(successor)
 
+    def _calc_iter_IN_OUT_for_instr(self, gen_attr, kill_attr):
+        self.iter_IN_instr = copy.deepcopy(self.iter_IN)
+        self.iter_OUT_instr = copy.deepcopy(self.iter_OUT)
+        for bbn, bb in self.cfg.bbs.items():
+            st, ed = bb.st_instr_id, bb.ed_instr_id
+            prev_iter_OUT_instr = self.iter_IN_instr[bbn]
+            if self.direction == 'forward' :
+                idx = st
+                d = 1
+            else:
+                idx = ed
+                d = -1
+            while (ed - idx) * (idx - st) >= 0:
+                instr = self.instrs[idx - 1]
+                self.iter_IN_instr[idx] = prev_iter_OUT_instr
+                self.iter_OUT_instr[idx] = self.trans_func(self.iter_IN_instr[idx], getattr(instr, gen_attr), getattr(instr, kill_attr))
+                prev_iter_OUT_instr = self.iter_OUT_instr[idx]
+                idx += d
+
+    def _after_iteration(self):
+        self._calc_iter_IN_OUT_for_instr() # will invoke subclass'
         if self.direction == 'forward':
             self.IN = self.iter_IN
             self.OUT = self.iter_OUT
@@ -72,6 +93,11 @@ class DFAFramework(object):
             self.IN = self.iter_OUT
             self.OUT = self.iter_IN
 
+    def _optimize(self):
+        pass
+
     def run(self):
         self._init_analysis()
         self._iterate()
+        self._after_iteration()
+        self._optimize()
