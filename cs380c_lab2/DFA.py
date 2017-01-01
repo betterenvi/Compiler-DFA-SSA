@@ -1,6 +1,6 @@
 import sys, os, re, collections
 
-#from CFG import *
+#from cfg import *
 
 class Instruction(object):
     '''
