@@ -20,6 +20,8 @@ class Instruction(object):
     LEADER_OPS = ['enter']
     INVALID_LEADER_OPS = ['entrypc', 'nop']
     TERMINATOR_OPS = BR_OPS + PROC_OPS
+    CMP_OPS = ['cmpeq', 'cmple', 'cmplt']
+    CALC_OPS = ['add', 'sub', 'mul', 'div', 'mod', 'neg']
     ARITH_OPS = ['add', 'sub', 'mul', 'div', 'mod', 'neg', 'cmpeq', 'cmple', 'cmplt']
 
     REGISTER_PATTERN = '\((\d+)\)' # e.g. (5)
@@ -37,9 +39,11 @@ class Instruction(object):
         self.op = op
         self.operand1 = operand1
         self.operand2 = operand2
-        self.left = list()
+        self.left = set()
         self.right = ''
         self._parse()
+        self._calc_rd_gen_kill()
+        self._calc_lv_gen_kill()
 
     def _parse_operand(self, operand):
         for k, pat in Instruction.PATTERNS.items():
@@ -59,35 +63,176 @@ class Instruction(object):
         self.operand2_parsed = self._parse_operand(self.operand2)[1]
         if self.op in Instruction.ARITH_OPS:
             self.right = '%s %s %s' % (self.operand1_parsed, self.op, self.operand2_parsed)
-            self.left.append('r%s' % self.instr_id)
+            self.left.add('r%s' % self.instr_id)
         elif self.op == 'move':
             self.right = self.operand1_parsed
-            self.left.append(self.operand2_parsed)
-            self.left.append('r%s' % self.instr_id)
+            self.left.add(self.operand2_parsed)
+            self.left.add('r%s' % self.instr_id)
         elif self.op == 'load':
             self.right = self.operand1_parsed
-            self.left.append('r%s' % self.instr_id)
+            self.left.add('r%s' % self.instr_id)
         elif self.op == 'store':
             self.right = self.operand1_parsed
-            self.left.append('*(%s)' % self.operand2_parsed)
+            self.left.add('*(%s)' % self.operand2_parsed)
         elif self.op in Instruction.CJMP_OPS:
             self.dst_bbn = self.operand2_parsed
         elif self.op in Instruction.UJMP_OPS:
             self.dst_bbn = self.operand1_parsed
 
+    def _calc_rd_gen_kill(self):
+        self.RD_KILL = self.left
+        self.RD_GEN = set()
+        if self.op in Instruction.ARITH_OPS:
+            tmp = self.right.split(' ')
+            rights = [tmp[0], tmp[2]]
+            for lf in self.left:
+                if lf in rights:
+                    return
+            self.RD_GEN.add(self.right)
+
+    def _calc_lv_gen_kill(self):
+        is_variable = lambda x : re.match('\d+', x) != None
+        self.LV_GEN = set()
+        if self.op in Instruction.ARITH_OPS:
+            tmp = self.right.split(' ')
+            for i in [0, 2]:
+                if is_variable(tmp[i]):
+                    self.LV_GEN.add(tmp[i])
+        elif self.op in ['move', 'load']:
+            self.LV_GEN.add(self.right)
+        elif self.op == 'store':
+            self.LV_GEN.add(self.right)
+            self.LV_GEN.add(self.operand2_parsed)
+        self.LV_KILL = self.left - self.LV_GEN
+
+
 class DFAFramework(object):
     """
     docstring for DFAFramework
-    direction, merge_op, trans_func, top, bottom
+    kwargs:
+    instrs, cfg, direction
     """
     def __init__(self, *args, **kwargs):
         super(DFAFramework, self).__init__()
+        self._init_params(*args, **kwargs)
+        self._set_merge_trans_func()
+        self._calc_top_bottom()
+        self._calc_gen_kill()
+
+    def _init_params(self, *args, **kwargs):
         for i, arg in enumerate(args):
             setattr(self, 'arg_' + str(i), arg)
         for kw, arg in kwargs.items():
             setattr(self, kw, arg)
-    def run(self, cfg):
 
+        self.IN = collections.defaultdict(set)
+        self.OUT = collections.defaultdict(set)
+        if self.direction == 'forward':
+            self.iter_heads_of_func = self.cfg.heads_of_func
+            self.iter_IN = self.IN
+            self.iter_OUT = self.OUT
+            self.predecessors = self.cfg.predecessors
+            self.successors = self.cfg.successors
+        else:
+            self.iter_heads_of_func = self.cfg.tails_of_func
+            self.iter_IN = self.OUT
+            self.iter_OUT = self.IN
+            self.predecessors = self.cfg.successors
+            self.successors = self.cfg.predecessors
+
+    def _set_merge_trans_func(self):
+        pass
+
+    def _calc_top_bottom(self):
+        self.top = set()
+        self.bottom = set()
+
+    def _calc_gen_kill(self):
+        self.GEN = collections.defaultdict(set)
+        self.KILL = collections.defaultdict(set)
+
+    def _init_analysis(self):
+        self.init_bbns = set()
+        for bbn in self.cfg.bbs.keys():
+            self.IN[bbn] = self.top
+            self.OUT[bbn] = self.top
+        for func, bbns in self.iter_heads_of_func.items():
+            self.init_bbns.update(bbns)
+        for init_bbn in self.init_bbns:
+            self.iter_OUT[bbn] = self.trans_func(self.iter_IN[bbn], self.GEN[bbn], self.KILL[bbn])
+        self.updating_queue = list(self.init_bbns)
+
+    def _iterate(self):
+        while len(self.updating_queue) > 0:
+            bbn = self.updating_queue.pop(0)
+            for successor in self.successors[bbn]:
+                self.iter_IN[successor] = self.merge_func(*[self.iter_IN[successor], self.iter_OUT[bbn]])
+                new_out = self.trans_func(self.iter_IN[successor], self.GEN[successor], self.KILL[successor])
+                if new_out != self.iter_OUT[successor]:
+                    self.iter_OUT[successor] = new_out
+                    self.updating_queue.append(successor)
+
+    def run(self, cfg):
+        self._init_analysis(cfg)
+        self._iterate()
+
+class ReachingDefinitionAnalysis(DFAFramework):
+    """docstring for ReachingDefinitionAnalysis"""
+    def __init__(self, *args, **kwargs):
+        super(ReachingDefinitionAnalysis, self).__init__(*args, **kwargs)
+
+    def _set_merge_trans_func(self):
+        def merge_func(*args):
+            if len(args) == 0:
+                return set()
+            res = args[0]
+            for i in range(1, len(args)):
+                res |= args[i]
+            return res
+
+        def trans_func(x, gen, kill):
+            return (x - kill) | gen
+
+        self.merge_func = merge_func
+        self.trans_func = trans_func
+
+    def _calc_top_bottom(self):
+        self.top = set()
+        self.bottom = set()
+        for instr in self.instrs:
+            if instr.op in Instruction.ARITH_OPS:
+                self.bottom.add(instr.right)
+
+    def _calc_gen_kill(self):
+        self.GEN = collections.defaultdict(set)
+        self.KILL = collections.defaultdict(set)
+
+
+
+
+
+
+
+
+
+
+
+
+class A(object):
+    def __init__(self, x):
+        super(A, self).__init__()
+        self.x = x
+        self.f()
+
+    def f(self):
+        print self.x
+
+class B(A):
+    def __init__(self, x):
+        super(B, self).__init__(x)
+
+    def f(self):
+        print self.x + 1
 
 
 class DFA(object):
