@@ -91,9 +91,7 @@ class Instruction(object):
     def _calc_rd_gen_kill(self):
         self.RD_VAR_KILL = self.left
         self.RD_KILL = set()
-        self.RD_GEN = set()
-        if self.op in Instruction.ARITH_OPS:
-            self.RD_GEN.add(self.instr_id)
+        self.RD_GEN = set() if self.op == 'store' else {(self.instr_id, lft) for lft in self.left}
 
     def _calc_ae_gen_kill(self):
         self.AE_VAR_KILL = self.left
@@ -229,13 +227,9 @@ class ReachingDefinitionAnalysis(DFAFramework):
 
     def _get_rd_kill(self, lefts):
         res = set()
-        for instr_id in self.bottom:
-            expression = self.instrs[instr_id - 1].right
-            tmp = expression.split(' ')
-            rights = [tmp[0], tmp[2]]
-            for left in lefts:
-                if left in rights:
-                    res.add(instr_id)
+        for bt in self.bottom: # bt is a tuple of (instr_id, left)
+            if bt[1] in lefts:
+                res.add(bt)
         return res
 
     def _calc_gen_kill(self):
@@ -253,7 +247,6 @@ class ReachingDefinitionAnalysis(DFAFramework):
                 self.KILL[bbn] -= instr.RD_GEN
                 self.GEN[bbn] = self.trans_func(self.GEN[bbn], instr.RD_GEN, instr.RD_KILL)
                 idx += 1
-
 
 
 class AvailableExpressionAnalysis(DFAFramework):
