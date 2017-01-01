@@ -44,26 +44,26 @@ class DFAFramework(object):
         self.KILL = collections.defaultdict(set)
 
     def _init_analysis(self):
-        self.init_bbns = set()
+        self._init_bbns = set()
         for bbn in self.cfg.bbs.keys():
             self.iter_IN[bbn] |= self.top
             self.iter_OUT[bbn] |= self.top
         for func, bbns in self.iter_heads_of_func.items():
-            self.init_bbns.update(bbns)
-        for bbn in self.init_bbns:
+            self._init_bbns.update(bbns)
+        for bbn in self._init_bbns:
             self.iter_IN[bbn] &= set()
             self.iter_OUT[bbn] = self.trans_func(self.iter_IN[bbn], self.GEN[bbn], self.KILL[bbn])
-        self.updating_queue = list(self.init_bbns)
+        self._updating_queue = list(self._init_bbns)
 
     def _iterate(self):
-        while len(self.updating_queue) > 0:
-            bbn = self.updating_queue.pop(0)
+        while len(self._updating_queue) > 0:
+            bbn = self._updating_queue.pop(0)
             for successor in self.successors[bbn]:
                 self.iter_IN[successor] = self.merge_func(*[self.iter_IN[successor], self.iter_OUT[bbn]])
                 new_out = self.trans_func(self.iter_IN[successor], self.GEN[successor], self.KILL[successor])
                 if new_out != self.iter_OUT[successor]:
                     self.iter_OUT[successor] = new_out
-                    self.updating_queue.append(successor)
+                    self._updating_queue.append(successor)
 
         if self.direction == 'forward':
             self.IN = self.iter_IN

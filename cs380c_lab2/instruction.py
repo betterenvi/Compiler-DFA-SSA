@@ -121,3 +121,27 @@ class Instruction(object):
                 self.LV_GEN.add(self.operand2_parsed)
         self.LV_KILL = self.left - self.LV_GEN
 
+
+def read_3addr_code_from_file(file_name, skip_num_rows=0):
+    '''
+    skip_num_rows: default value is 0.
+    Although the first line is "compiling examples/*.c", this line is not included if we redirect the output to file.
+    '''
+    instr_strs = list()
+    with open(file_name) as fin:
+        instr_strs = [line.strip() for line in fin.readlines()]
+        instr_strs = instr_strs[skip_num_rows:]
+    return instr_strs
+
+def read_instrs(file_name, skip_num_rows=0):
+    instr_strs = read_3addr_code_from_file(file_name, skip_num_rows=skip_num_rows)
+    try:
+        instrs = list()
+        for instr_str in instr_strs:
+            cols = instr_str.split()
+            cols.extend([''] * (5 - len(cols)))
+            instrs.append(Instruction(int(cols[1][:-1]), cols[2], cols[3], cols[4]))
+    except Exception, e:
+        print e
+        print 'Bad instructions in the code!'
+    return instrs

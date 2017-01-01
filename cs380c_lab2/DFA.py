@@ -1,43 +1,19 @@
 import sys, os, re, collections, copy
 
 from cfg import *
+from instruction import *
 from rda import ReachingDefinitionAnalysis as RDA
 from aea import AvailableExpressionAnalysis as AEA
 from lva import LiveVariableAnalysis as LVA
 
 class DFA(object):
-    def __init__(self):
+    def __init__(self, instrs):
         super(DFA, self).__init__()
+        self.instrs = instrs
+        self.num_instrs = len(instrs)
+        self._create_cfg()
 
-    def _read_3addr_code_from_file(self, file_name, skip_num_rows=0):
-        '''
-        skip_num_rows: default value is 0.
-        Although the first line is "compiling examples/*.c", this line is not included if we redirect the output to file.
-        '''
-        self.instr_strs = list()
-        with open(file_name) as fin:
-            self.instr_strs = [line.strip() for line in fin.readlines()]
-            self.instr_strs = self.instr_strs[skip_num_rows:]
-        return self
-
-    def _init_analysis(self):
-        try:
-            self.num_instrs = len(self.instr_strs)
-            self.instrs = list()
-            for instr_str in self.instr_strs:
-                cols = instr_str.split()
-                cols.extend([''] * (5 - len(cols)))
-                self.instrs.append(Instruction(int(cols[1][:-1]), cols[2], cols[3], cols[4]))
-        except Exception, e:
-            print e
-            print 'Bad instructions in the code!'
-        return self
-
-    def display_instrs(self):
-        for instr in self.instrs:
-            print instr
-
-    def create_CFG(self):
+    def _create_cfg(self):
         '''
         Branch instructions. The opcodes are br, blbc, blbs, and call.
         '''
@@ -76,6 +52,13 @@ class DFA(object):
         self.cfg.construct()
         return self
 
+    def display_cfg(self):
+        self.cfg.display()
+
+    def display_instrs(self):
+        for instr in self.instrs:
+            print instr
+
     def run_rda(self):
         '''
         Reaching Definition Analysis
@@ -99,11 +82,9 @@ class DFA(object):
 
 if __name__ == '__main__':
     fn = './examples/gcd.c.3addr'
-    d = DFA()
-    d._read_3addr_code_from_file(fn)
-    d._init_analysis()
-    d.create_CFG()
-    d.cfg.display()
+    instrs = read_instrs(fn)
+    d = DFA(instrs)
+    d.display_cfg()
     d.run_rda()
     d.run_lva()
     d.run_aea()
