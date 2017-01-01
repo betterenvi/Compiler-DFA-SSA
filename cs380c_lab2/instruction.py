@@ -1,4 +1,4 @@
-import sys, os, re, collections, copy
+import re, collections, copy
 
 class Instruction(object):
     '''

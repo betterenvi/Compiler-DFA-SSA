@@ -1,4 +1,4 @@
-import sys, os, re, collections, copy
+import re, collections, copy
 
 from cfg import *
 from dfa_framework import DFAFramework
