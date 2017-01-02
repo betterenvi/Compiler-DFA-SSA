@@ -104,7 +104,15 @@ class Instruction(object):
         elif self.op == 'store':
             self.expression = self.operand1_parsed
             self.operands.append(self.expression)
-            self.lefts.add('*(%s)' % self.operand2_parsed)
+            # self.lefts.add('*(%s)' % self.operand2_parsed)
+        elif self.op in ['param', 'write']:
+            self.expression = self.operand1_parsed
+            self.operands.append(self.expression)
+            # self.lefts.add('r%s' % self.instr_id)
+        elif self.op in Instruction.CBR_OPS:
+            self.expression = self.operand1_parsed
+            self.operands.append(self.expression)
+            self.dst_bbn = self.operand2_parsed
         elif self.op in Instruction.CJMP_OPS:
             self.dst_bbn = self.operand2_parsed
         elif self.op in Instruction.UJMP_OPS:
@@ -133,13 +141,15 @@ class Instruction(object):
             for v in self.operands:
                 if Instruction.is_variable(v):
                     self.LV_GEN.add(v)
-        elif self.op in ['move', 'load']:
+        elif self.op in ['move', 'load', 'param', 'write']:
             self.LV_GEN.add(self.expression)
         elif self.op == 'store':
             if Instruction.is_variable(self.expression):
                 self.LV_GEN.add(self.expression)
             if Instruction.is_variable(self.operand2_parsed):
                 self.LV_GEN.add(self.operand2_parsed)
+        elif self.op in Instruction.CBR_OPS:
+            self.LV_GEN.add(self.expression)
         self.LV_KILL = self.lefts - self.LV_GEN
 
 

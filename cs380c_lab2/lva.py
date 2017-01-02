@@ -45,3 +45,21 @@ class LiveVariableAnalysis(DFAFramework):
 
     def _calc_iter_IN_OUT_for_instr(self):
         super(LiveVariableAnalysis, self)._calc_iter_IN_OUT_for_instr(gen_attr='LV_GEN', kill_attr='LV_KILL')
+
+    def _optimize(self):
+        self.num_statements_eliminated_SCR = collections.defaultdict(int)
+        self.num_statements_eliminated_not_SCR = collections.defaultdict(int)
+        for instr in self.instrs:
+            lv_in_lefts = instr.lefts & self.iter_IN_instr[instr.instr_id]
+            if 0 == len(lv_in_lefts) < len(instr.lefts):
+                print 'dse', instr.instr_id, lv_in_lefts, self.iter_IN_instr[instr.instr_id], instr.lefts
+                # for left in self.iter_IN_instr[instr.instr_id]:
+                #     print left
+                self.num_statements_eliminated_SCR[instr.func_instr_id] += 1
+
+    def _report(self):
+        for func in self.cfg.bbns_of_func.keys():
+            print 'Function: %d' % func
+            print 'Number of statements eliminated in SCR: %d' % self.num_statements_eliminated_SCR[func]
+            print 'Number of statements eliminated not in SCR: %d' % self.num_statements_eliminated_not_SCR[func]
+
