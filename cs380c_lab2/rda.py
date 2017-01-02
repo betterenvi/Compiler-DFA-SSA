@@ -41,7 +41,7 @@ class ReachingDefinitionAnalysis(DFAFramework):
         self.GEN = collections.defaultdict(set)
         self.KILL = collections.defaultdict(set)
         for instr in self.instrs:
-            instr.RD_KILL.update(self._get_rd_kill(instr.left) - instr.RD_GEN)
+            instr.RD_KILL.update(self._get_rd_kill(instr.lefts) - instr.RD_GEN)
 
         for bbn, bb in self.cfg.bbs.items():
             st, ed = bb.st_instr_id, bb.ed_instr_id
@@ -56,15 +56,29 @@ class ReachingDefinitionAnalysis(DFAFramework):
     def _calc_iter_IN_OUT_for_instr(self):
         super(ReachingDefinitionAnalysis, self)._calc_iter_IN_OUT_for_instr(gen_attr='RD_GEN', kill_attr='RD_KILL')
 
-    def _constant_propagation(self):
-        self.num_propagation = 0
-        for instr in self.instrs:
-            pass
-
 
     def _optimize(self):
-        self._constant_propagation()
+        '''
+        Constant propagation
+        '''
+        self.num_propagation = collections.defaultdict(int)
+        for bbn, bb in self.cfg.bbs.items():
+            st, ed = bb.st_instr_id, bb.ed_instr_id
+            idx = st
+            while idx <= ed:
+                instr = self.instrs[idx - 1]
+                for var_operand in instr.var_operands:
+                    rd_instr_ids = [instr_id for (instr_id, var) in self.iter_IN_instr[instr.instr_id] if var == var_operand]
+                    num_evaluable = sum([self.instrs[rd_instr_id - 1].expression_evaluable for rd_instr_id in rd_instr_ids])
+                    if num_evaluable == len(rd_instr_ids) > 0: # each rd is evaluable
+                        rd_expressions = [self.instrs[rd_instr_id - 1] for rd_instr_id in rd_instr_ids]
+                        if len(set(rd_expressions)) == 1:  # all rds have one same value
+                            self.num_propagation[bb.func_instr_id] += 1
+                idx += 1
 
 
-
+    def _report(self):
+        for func in self.cfg.bbns_of_func.keys():
+            print 'Function: %d' % func
+            print 'Number of constants propagated: %d' % self.num_propagation[func]
 

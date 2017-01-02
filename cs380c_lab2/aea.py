@@ -43,7 +43,7 @@ class AvailableExpressionAnalysis(DFAFramework):
         self.GEN = collections.defaultdict(set)
         self.KILL = collections.defaultdict(set)
         for instr in self.instrs:
-            instr.AE_KILL.update(self._get_ae_kill(instr.left))
+            instr.AE_KILL.update(self._get_ae_kill(instr.lefts))
 
         for bbn, bb in self.cfg.bbs.items():
             st, ed = bb.st_instr_id, bb.ed_instr_id

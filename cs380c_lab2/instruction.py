@@ -21,6 +21,8 @@ class Instruction(object):
     CMP_OPS = ['cmpeq', 'cmple', 'cmplt']
     CALC_OPS = ['add', 'sub', 'mul', 'div', 'mod', 'neg']
     ARITH_OPS = ['add', 'sub', 'mul', 'div', 'mod', 'neg', 'cmpeq', 'cmple', 'cmplt']
+    EXCHANGEABLE_ARITH_OPS = ['add', 'mul', 'cmpeq']
+    ARITH_OP_MAP = {'add':'+', 'sub':'-', 'mul':'*', 'div':'/', 'mod':'%', 'neg':'-', 'cmpeq':'==', 'cmple':'<=', 'cmplt':'<'}
 
     REGISTER_PATTERN = '\((\d+)\)' # e.g. (5)
     INSTR_PATTERN = '\[(\d+)\]' # e.g. [5]
@@ -30,6 +32,15 @@ class Instruction(object):
     VAR_PATTERN = '([_a-zA-Z0-9]+)#[-0-9]+' # e.g. i#-8
     PATTERNS = {'r':REGISTER_PATTERN, 'i':INSTR_PATTERN, 'n':NUM_PATTERN, 'b':BASE_PATTERN,
     'o':OFFSET_PATTERN, 'v':VAR_PATTERN}
+    EVALUABLE_PATTERN = '^[-.0-9]+( *[%s] *[-.0-9]+)?$' % ''.join(set(''.join(ARITH_OP_MAP.values())))
+
+    @classmethod
+    def is_variable(cls, x):
+        return x not in ['GP', 'FP'] and re.match('\d+', x) == None
+
+    @classmethod
+    def is_evaluable(cls, x):
+        return re.match(cls.EVALUABLE_PATTERN, x) != None
 
     def __init__(self, instr_id, op, operand1, operand2):
         super(Instruction, self).__init__()
@@ -37,17 +48,20 @@ class Instruction(object):
         self.op = op
         self.operand1 = operand1
         self.operand2 = operand2
-        self.left = set()
-        self.right = ''
+        self.lefts = set()
+        self.expression = ''
+        self.operands = list()
         self._parse()
         self._calc_rd_gen_kill()
         self._calc_ae_gen_kill()
         self._calc_lv_gen_kill()
+        self.var_operands = self.LV_GEN
+        self.expression_evaluable = Instruction.is_evaluable(self.expression)
 
     def __repr__(self):
         res = 'instr %s:\t' % (self.instr_id)
         if self.op in Instruction.ARITH_OPS + ['move', 'load', 'store']:
-            res += '%s = %s' % (' = '.join(self.left), self.right)
+            res += '%s = %s' % (' = '.join(self.lefts), self.expression)
         else:
             res += ' '.join([self.op, self.operand1, self.operand2])
         return res
@@ -69,56 +83,63 @@ class Instruction(object):
         self.operand1_parsed = self._parse_operand(self.operand1)[1]
         self.operand2_parsed = self._parse_operand(self.operand2)[1]
         if self.op in Instruction.ARITH_OPS:
-            self.operands = (self.operand1_parsed, self.operand2_parsed)
-            self.right = '%s %s %s' % (self.operand1_parsed, self.op, self.operand2_parsed)
-            self.left.add('r%s' % self.instr_id)
+            if self.op == 'neg':
+                self.operand2_parsed = self.operand1_parsed
+                self.operand1_parsed = '0'
+            if self.op in Instruction.EXCHANGEABLE_ARITH_OPS:
+                self.operand1_parsed, self.operand2_parsed = self.operand2_parsed, self.operand1_parsed
+            self.operands = [self.operand1_parsed, self.operand2_parsed]
+            self.expression = '%s %s %s' % (self.operand1_parsed, self.op, self.operand2_parsed)
+            self.lefts.add('r%s' % self.instr_id)
         elif self.op == 'move':
-            self.right = self.operand1_parsed
-            self.left.add(self.operand2_parsed)
-            self.left.add('r%s' % self.instr_id)
+            self.expression = self.operand1_parsed
+            self.operands.append(self.expression)
+            self.lefts.add(self.operand2_parsed)
+            self.lefts.add('r%s' % self.instr_id)
         elif self.op == 'load':
-            self.right = self.operand1_parsed
-            self.left.add('r%s' % self.instr_id)
+            self.expression = self.operand1_parsed
+            self.operands.append(self.expression)
+            self.lefts.add('r%s' % self.instr_id)
         elif self.op == 'store':
-            self.right = self.operand1_parsed
-            self.left.add('*(%s)' % self.operand2_parsed)
+            self.expression = self.operand1_parsed
+            self.operands.append(self.expression)
+            self.lefts.add('*(%s)' % self.operand2_parsed)
         elif self.op in Instruction.CJMP_OPS:
             self.dst_bbn = self.operand2_parsed
         elif self.op in Instruction.UJMP_OPS:
             self.dst_bbn = self.operand1_parsed
 
     def _calc_rd_gen_kill(self):
-        self.RD_VAR_KILL = self.left
+        self.RD_VAR_KILL = self.lefts
         self.RD_KILL = set()
-        self.RD_GEN = set() if self.op == 'store' else {(self.instr_id, lft) for lft in self.left}
+        self.RD_GEN = set() if self.op == 'store' else {(self.instr_id, left) for left in self.lefts}
 
     def _calc_ae_gen_kill(self):
-        self.AE_VAR_KILL = self.left
+        self.AE_VAR_KILL = self.lefts
         self.AE_KILL = set()
         self.AE_GEN = set()
         if self.op in Instruction.ARITH_OPS:
-            rights = self.operands
-            for lf in self.left:
-                if lf in rights:
-                    self.AE_KILL.add(self.right)
+            operands = self.operands
+            for lf in self.lefts:
+                if lf in operands:
+                    self.AE_KILL.add(self.expression)
                     return
-            self.AE_GEN.add(self.right)
+            self.AE_GEN.add(self.expression)
 
     def _calc_lv_gen_kill(self):
-        is_variable = lambda x : x not in ['GP', 'FP'] and re.match('\d+', x) == None
         self.LV_GEN = set()
         if self.op in Instruction.ARITH_OPS:
             for v in self.operands:
-                if is_variable(v):
+                if Instruction.is_variable(v):
                     self.LV_GEN.add(v)
         elif self.op in ['move', 'load']:
-            self.LV_GEN.add(self.right)
+            self.LV_GEN.add(self.expression)
         elif self.op == 'store':
-            if is_variable(self.right):
-                self.LV_GEN.add(self.right)
-            if is_variable(self.operand2_parsed):
+            if Instruction.is_variable(self.expression):
+                self.LV_GEN.add(self.expression)
+            if Instruction.is_variable(self.operand2_parsed):
                 self.LV_GEN.add(self.operand2_parsed)
-        self.LV_KILL = self.left - self.LV_GEN
+        self.LV_KILL = self.lefts - self.LV_GEN
 
 
 def read_3addr_code_from_file(file_name, skip_num_rows=0):

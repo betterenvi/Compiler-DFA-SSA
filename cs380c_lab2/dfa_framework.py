@@ -96,8 +96,12 @@ class DFAFramework(object):
     def _optimize(self):
         pass
 
+    def _report(self):
+        pass
+
     def run(self):
         self._init_analysis()
         self._iterate()
         self._after_iteration()
         self._optimize()
+        self._report()

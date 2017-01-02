@@ -81,6 +81,7 @@ class DFA(object):
         self.lva.run()
 
 if __name__ == '__main__':
+    # example code
     fn = './examples/gcd.c.3addr'
     instrs = read_instrs(fn)
     d = DFA(instrs)
@@ -89,9 +90,9 @@ if __name__ == '__main__':
     d.run_aea()
     d.run_lva()
 
-    print d.rda.OUT
-    print d.aea.OUT
-    print d.lva.IN
+    # print d.rda.OUT
+    # print d.aea.OUT
+    # print d.lva.IN
 
     # print d.lva.iter_IN
     # print d.lva.iter_IN_instr
