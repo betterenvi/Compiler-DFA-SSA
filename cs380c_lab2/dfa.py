@@ -37,8 +37,10 @@ class DFA(object):
                 continue
             if instr.op == Instruction.PROC_START_OP:
                 func_instr_id = instr.instr_id
+            instr.func_instr_id = func_instr_id
             next_instr_id = leader + 1
             while next_instr_id <= self.num_instrs and next_instr_id not in self.leaders:
+                self.instrs[next_instr_id - 1].func_instr_id = func_instr_id
                 next_instr_id += 1
             ed_instr_id = next_instr_id - 1
             bb = BasicBlock(leader, ed_instr_id, func_instr_id)

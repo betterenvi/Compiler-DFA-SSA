@@ -97,6 +97,9 @@ class DFAFramework(object):
         pass
 
     def _report(self):
+        '''
+        report optimization result
+        '''
         pass
 
     def run(self):

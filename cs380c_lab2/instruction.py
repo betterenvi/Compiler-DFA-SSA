@@ -42,12 +42,13 @@ class Instruction(object):
     def is_evaluable(cls, x):
         return re.match(cls.EVALUABLE_PATTERN, x) != None
 
-    def __init__(self, instr_id, op, operand1, operand2):
+    def __init__(self, instr_id, op, operand1, operand2, func_instr_id=None):
         super(Instruction, self).__init__()
         self.instr_id = instr_id # integer starting from 1
         self.op = op
         self.operand1 = operand1
         self.operand2 = operand2
+        self.func_instr_id = func_instr_id
         self.lefts = set()
         self.expression = ''
         self.operands = list()

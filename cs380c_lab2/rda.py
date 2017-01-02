@@ -62,19 +62,14 @@ class ReachingDefinitionAnalysis(DFAFramework):
         Constant propagation
         '''
         self.num_propagation = collections.defaultdict(int)
-        for bbn, bb in self.cfg.bbs.items():
-            st, ed = bb.st_instr_id, bb.ed_instr_id
-            idx = st
-            while idx <= ed:
-                instr = self.instrs[idx - 1]
-                for var_operand in instr.var_operands:
-                    rd_instr_ids = [instr_id for (instr_id, var) in self.iter_IN_instr[instr.instr_id] if var == var_operand]
-                    num_evaluable = sum([self.instrs[rd_instr_id - 1].expression_evaluable for rd_instr_id in rd_instr_ids])
-                    if num_evaluable == len(rd_instr_ids) > 0: # each rd is evaluable
-                        rd_expressions = [self.instrs[rd_instr_id - 1] for rd_instr_id in rd_instr_ids]
-                        if len(set(rd_expressions)) == 1:  # all rds have one same value
-                            self.num_propagation[bb.func_instr_id] += 1
-                idx += 1
+        for instr in self.instrs:
+            for var_operand in instr.var_operands:
+                rd_instr_ids = [instr_id for (instr_id, var) in self.iter_IN_instr[instr.instr_id] if var == var_operand]
+                num_evaluable = sum([self.instrs[rd_instr_id - 1].expression_evaluable for rd_instr_id in rd_instr_ids])
+                if num_evaluable == len(rd_instr_ids) > 0: # each rd is evaluable
+                    rd_expressions = [self.instrs[rd_instr_id - 1] for rd_instr_id in rd_instr_ids]
+                    if len(set(rd_expressions)) == 1:  # all rds have one same value
+                        self.num_propagation[instr.func_instr_id] += 1
 
 
     def _report(self):
