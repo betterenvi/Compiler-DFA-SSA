@@ -50,10 +50,10 @@ class CFG(object):
         self._sort()
         for func in sorted(self.bbns_of_func.keys()):
             bbns = self.bbns_of_func[func]
-            print 'Function: %s\nBasic blocks: %s\nCFG:\n' % (func, ' '.join(map(str, bbns)))
+            print 'Function: %s\nBasic blocks: %s\nCFG:' % (func, ' '.join(map(str, bbns)))
             for src_bbn in bbns:
                 dst_bbns = self.edges[src_bbn]
-                print '%s ->%s\n' % (src_bbn, '' if len(dst_bbns) == 0 else (' ' + ' '.join(map(str, dst_bbns))))
+                print '%s ->%s' % (src_bbn, '' if len(dst_bbns) == 0 else (' ' + ' '.join(map(str, dst_bbns))))
         return self
 
     def _strongconnect(self, bbn):
@@ -110,9 +110,3 @@ class CFG(object):
 
     def construct(self):
         self._calc_heads_tails_of_func()
-
-
-
-
-
-

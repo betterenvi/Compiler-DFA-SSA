@@ -1,6 +1,5 @@
 import re, collections, copy
 
-from cfg import *
 from dfa_framework import DFAFramework
 
 class LiveVariableAnalysis(DFAFramework):
