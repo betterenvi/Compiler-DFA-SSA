@@ -51,7 +51,7 @@ class LiveVariableAnalysis(DFAFramework):
         for instr in self.instrs:
             lv_in_lefts = instr.lefts & self.iter_IN_instr[instr.instr_id]
             if 0 == len(lv_in_lefts) < len(instr.lefts):
-                print 'dse', instr.instr_id, lv_in_lefts, self.iter_IN_instr[instr.instr_id], instr.lefts
+                # print 'dse', instr.instr_id, lv_in_lefts, self.iter_IN_instr[instr.instr_id], instr.lefts
                 # for left in self.iter_IN_instr[instr.instr_id]:
                 #     print left
                 self.num_statements_eliminated_SCR[instr.func_instr_id] += 1
